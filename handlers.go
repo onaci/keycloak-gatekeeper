@@ -220,13 +220,28 @@ func (r *oauthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 		r.dropAccessTokenCookie(req, w, accessToken, time.Until(identity.ExpiresAt))
 	}
 
-	// step: decode the request variable
+	// step: decode the state variable
 	redirectURI := "/"
-	if req.URL.Query().Get("state") != "" {
-		if encodedRequestURI, _ := req.Cookie(requestURICookie); encodedRequestURI != nil {
-			decoded, _ := base64.StdEncoding.DecodeString(encodedRequestURI.Value)
-			redirectURI = string(decoded)
+	queryState := req.URL.Query().Get("state")
+	if queryState != "" {
+		decodedState, decodeErr := base64.StdEncoding.DecodeString(queryState)
+		if decodeErr != nil {
+			r.log.Warn("unable to decode the state parameter from the querystring",
+				zap.String("queryState", queryState),
+				zap.Error(decodeErr))
+		} else {
+			parsedState, parseErr := url.ParseRequestURI(string(decodedState))
+			if parseErr != nil {
+				r.log.Warn("unable to parse the state parameter to a valid request URI",
+					zap.String("decodedState", string(decodedState)),
+					zap.Error(parseErr))
+			} else {
+				redirectURI = parsedState.String()
+			}
 		}
+	}
+	if r.config.BaseURI != "" {
+		redirectURI = MergeUri(r.config.BaseURI, redirectURI).String()
 	}
 
 	r.redirectToURL(redirectURI, w, req, http.StatusTemporaryRedirect)
