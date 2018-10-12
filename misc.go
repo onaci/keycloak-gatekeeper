@@ -4,7 +4,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+		http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,7 +20,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path"
+  "strings"
 	"time"
 
 	"github.com/coreos/go-oidc/jose"
@@ -95,8 +97,43 @@ func (r *oauthProxy) redirectToAuthorization(w http.ResponseWriter, req *http.Re
 		w.WriteHeader(http.StatusUnauthorized)
 		return r.revokeProxy(w, req)
 	}
+
 	// step: add a state referrer to the authorization page
-	authQuery := fmt.Sprintf("?state=%s", base64.StdEncoding.EncodeToString([]byte(req.URL.RequestURI())))
+  state := req.URL.RequestURI()
+  if r.config.EnableXForwardedState {
+    // Assemble the state referrer URL from the X-Forwarded-* headers
+    forwardedState := req.Header.Get("X-Forwarded-URI")
+    forwardedPrefix := req.Header.Get("X-Forwarded-Prefix")
+    if forwardedPrefix != "" {
+      forwardedState = fmt.Sprintf("%s%s", strings.TrimRight(forwardedPrefix, "/"), forwardedState)
+    }
+    forwardedHost := req.Header.Get("X-Forwarded-Host")
+    if forwardedHost != "" {
+      forwardedScheme := defaultTo(req.Header.Get("X-Forwarded-Proto"), req.URL.Scheme)
+      forwardedPort := req.Header.Get("X-Forwarded-Port")
+      if forwardedPort != "" {
+        forwardedState = fmt.Sprintf("%s://%s:%s%s", forwardedScheme, forwardedHost, forwardedPort, forwardedState)
+      } else {
+        forwardedState = fmt.Sprintf("%s://%s%s", forwardedScheme, forwardedHost, forwardedState)
+      }
+    } 
+    if forwardedState != "" {
+      _, err := url.ParseRequestURI(forwardedState)
+      if err == nil {
+        state = forwardedState
+        r.log.Debug("Assembled state referrer URL from X-Forwarded-* headers",
+          zap.String("state", state))
+        
+      } else {
+        r.log.Warn("The X-Forwarded-* headers could not be assembled to a valid state referrer URL",
+          zap.String("forwardedState", forwardedState),
+          zap.Error(err))        
+      }
+    } else {
+      r.log.Debug("No X-Forwarded-* headers had values to assemble the state referrer URL from")
+    }
+	}
+	authQuery := fmt.Sprintf("?state=%s", base64.StdEncoding.EncodeToString([]byte(state)))
 
 	// step: if verification is switched off, we can't authorization
 	if r.config.SkipTokenVerification {

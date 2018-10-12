@@ -197,18 +197,27 @@ func (r *oauthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 
 	// step: decode the state variable
 	state := "/"
-	if req.URL.Query().Get("state") != "" {
-		decoded, err := base64.StdEncoding.DecodeString(req.URL.Query().Get("state"))
-		if err != nil {
-			r.log.Warn("unable to decode the state parameter",
-				zap.String("state", req.URL.Query().Get("state")),
-				zap.Error(err))
+  stateIsAbsolute := false
+  queryState := req.URL.Query().Get("state")
+	if queryState != "" {
+		decodedState, decodeErr := base64.StdEncoding.DecodeString(queryState)
+		if decodeErr != nil {
+			r.log.Warn("unable to decode the state parameter from the querystring",
+				zap.String("queryState", queryState),
+				zap.Error(decodeErr))
 		} else {
-			state = string(decoded)
+			parsedState, parseErr := url.ParseRequestURI(string(decodedState))
+      if parseErr != nil {
+        r.log.Warn("unable to parse the state parameter to a valid request URI",
+          zap.String("decodedState", string(decodedState)),
+          zap.Error(parseErr))
+      } else {
+        state = parsedState.String()
+        stateIsAbsolute = parsedState.IsAbs()
+      }
 		}
 	}
-	if r.config.BaseURI != "" {
-		// assuming state starts with slash
+	if r.config.BaseURI != "" && ! stateIsAbsolute {
 		state = r.config.BaseURI + state
 	}
 
