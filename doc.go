@@ -364,6 +364,9 @@ type Config struct {
 
 	// DisableAllLogging indicates no logging at all
 	DisableAllLogging bool `json:"disable-all-logging" yaml:"disable-all-logging" usage:"disables all logging to stdout and stderr"`
+
+	// EnableXForwardedState allows the callback state URL to be assembled from any X-Forwarded-* headers instead of assuming the RequestURI.
+	EnableXForwardedState bool `json:"enable-x-forwarded-state" yaml:"enable-x-forwarded-state" usage:"assemble the callback state referrer from any X-forwarded-* headers (default to incoming RequestURI)"`
 }
 
 // getVersion returns the proxy version

@@ -17,8 +17,10 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -98,8 +100,48 @@ func (r *oauthProxy) redirectToAuthorization(w http.ResponseWriter, req *http.Re
 	}
 
 	// step: add a state referrer to the authorization page
-	uuid := r.writeStateParameterCookie(req, w)
-	authQuery := fmt.Sprintf("?state=%s", uuid)
+	//	uuid := r.writeStateParameterCookie(req, w)
+	//	authQuery := fmt.Sprintf("?state=%s", uuid)
+	//	r.log.Debug("RRRRRRRRRRRR", zap.String("request", req.URL.String()))
+
+	state := req.URL.RequestURI()
+	if r.config.EnableXForwardedState {
+		// Assemble the state referrer URL from the X-Forwarded-* headers
+		forwardedUri := req.Header.Get("X-Forwarded-URI")
+		if forwardedUri != "" {
+			r.log.Debug("Checking X-forwarded path headers",
+				zap.String("forwardedUri", forwardedUri))
+			state = forwardedUri
+		}
+		forwardedPrefix := req.Header.Get("X-Forwarded-Prefix")
+		if forwardedPrefix != "" {
+			r.log.Debug("Checking X-forwarded path headers",
+				zap.String("forwardedPrefix", forwardedPrefix))
+			state = fmt.Sprintf("%s%s", strings.TrimRight(forwardedPrefix, "/"), state)
+		}
+		forwardedHost := req.Header.Get("X-Forwarded-Host")
+		if forwardedHost != "" {
+			forwardedScheme := defaultTo(req.Header.Get("X-Forwarded-Proto"), req.URL.Scheme)
+			forwardedPort := req.Header.Get("X-Forwarded-Port")
+			if !strings.Contains(forwardedHost, ":") && forwardedPort != "" {
+				state = fmt.Sprintf("%s://%s:%s%s", forwardedScheme, forwardedHost, forwardedPort, state)
+			} else {
+				state = fmt.Sprintf("%s://%s%s", forwardedScheme, forwardedHost, state)
+			}
+		}
+		_, err := url.ParseRequestURI(state)
+		if err == nil {
+			r.log.Debug("Assembled state referrer URL from X-Forwarded-* headers",
+				zap.String("state", state))
+
+		} else {
+			r.log.Warn("The X-Forwarded-* headers could not be assembled to a valid state referrer URL",
+				zap.String("state", state),
+				zap.Error(err))
+			state = req.URL.RequestURI()
+		}
+	}
+	authQuery := fmt.Sprintf("?state=%s", base64.StdEncoding.EncodeToString([]byte(state)))
 
 	// step: if verification is switched off, we can't authorization
 	if r.config.SkipTokenVerification {
