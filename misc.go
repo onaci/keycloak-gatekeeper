@@ -118,7 +118,7 @@ func (r *oauthProxy) redirectToAuthorization(w http.ResponseWriter, req *http.Re
     if forwardedHost != "" {
       forwardedScheme := defaultTo(req.Header.Get("X-Forwarded-Proto"), req.URL.Scheme)
       forwardedPort := req.Header.Get("X-Forwarded-Port")
-      if forwardedPort != "" {
+      if ! strings.Contains(forwardedHost, ":") && forwardedPort != "" {
         state = fmt.Sprintf("%s://%s:%s%s", forwardedScheme, forwardedHost, forwardedPort, state)
       } else {
         state = fmt.Sprintf("%s://%s%s", forwardedScheme, forwardedHost, state)
