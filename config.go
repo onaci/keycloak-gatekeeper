@@ -72,6 +72,7 @@ func newDefaultConfig() *Config {
 		UpstreamTimeout:               10 * time.Second,
 		UseLetsEncrypt:                false,
 		EnableXForwardedState:         false,
+		EnableXNoRedirectsHeader:      false,
 	}
 }
 
