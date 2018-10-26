@@ -71,7 +71,8 @@ func newDefaultConfig() *Config {
 		UpstreamTLSHandshakeTimeout:   10 * time.Second,
 		UpstreamTimeout:               10 * time.Second,
 		UseLetsEncrypt:                false,
-    EnableXForwardedState:         false,
+		EnableXForwardedState:         false,
+		EnableXNoRedirectsHeader:      false,
 	}
 }
 

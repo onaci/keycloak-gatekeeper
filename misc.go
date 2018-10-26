@@ -94,8 +94,23 @@ func (r *oauthProxy) redirectToURL(url string, w http.ResponseWriter, req *http.
 
 // redirectToAuthorization redirects the user to authorization handler
 func (r *oauthProxy) redirectToAuthorization(w http.ResponseWriter, req *http.Request) context.Context {
-	if r.config.NoRedirects {
+
+	if r.config.NoRedirects || (r.config.EnableXNoRedirectsHeader && ("" != req.Header.Get("X-Auth-NoRedirects"))) {
+		r.log.Warn("Redirecting for authorization is not supported for this request")
 		w.WriteHeader(http.StatusUnauthorized)
+
+		// RFC7235 requires a WWW-Authenticate header containing a challenge applicable to the requested resource.
+		// See: https://tools.ietf.org/html/rfc7235
+		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"%s\", error=\"missing_token\", error_description=\"oauth redirects disallowed\"", r.config.DiscoveryURL))
+
+		// are we using a custom http template for 401?
+		if r.config.UnauthorizedPage != "" {
+			name := path.Base(r.config.UnauthorizedPage)
+			if err := r.Render(w, name, r.config.Tags); err != nil {
+				r.log.Error("failed to render the template", zap.Error(err), zap.String("template", name))
+			}
+		}
+
 		return r.revokeProxy(w, req)
 	}
 

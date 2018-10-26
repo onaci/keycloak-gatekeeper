@@ -643,8 +643,13 @@ func (r *oauthProxy) createTemplates() error {
 	}
 
 	if r.config.ForbiddenPage != "" {
-		r.log.Debug("loading the custom sign forbidden page", zap.String("page", r.config.ForbiddenPage))
+		r.log.Debug("loading the custom forbidden page", zap.String("page", r.config.ForbiddenPage))
 		list = append(list, r.config.ForbiddenPage)
+	}
+
+	if r.config.UnauthorizedPage != "" {
+		r.log.Debug("loading the custom unauthorized page", zap.String("page", r.config.UnauthorizedPage))
+		list = append(list, r.config.UnauthorizedPage)
 	}
 
 	if len(list) > 0 {

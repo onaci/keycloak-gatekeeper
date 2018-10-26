@@ -350,8 +350,10 @@ type Config struct {
 
 	// SignInPage is the relative url for the sign in page
 	SignInPage string `json:"sign-in-page" yaml:"sign-in-page" usage:"path to custom template displayed for signin"`
-	// ForbiddenPage is a access forbidden page
-	ForbiddenPage string `json:"forbidden-page" yaml:"forbidden-page" usage:"path to custom template used for access forbidden"`
+	// ForbiddenPage is a 403 access forbidden page
+	ForbiddenPage string `json:"forbidden-page" yaml:"forbidden-page" usage:"path to custom template used for 403 access forbidden"`
+	// UnauthorizedPage is a 401 access unauthorised page
+	UnauthorizedPage string `json:"unauthorized-page" yaml:"unauthorized-page" usage:"path to custom template used for 401 access unauthorized"`
 	// Tags is passed to the templates
 	Tags map[string]string `json:"tags" yaml:"tags" usage:"keypairs passed to the templates at render,e.g title=Page"`
 
@@ -364,9 +366,11 @@ type Config struct {
 
 	// DisableAllLogging indicates no logging at all
 	DisableAllLogging bool `json:"disable-all-logging" yaml:"disable-all-logging" usage:"disables all logging to stdout and stderr"`
-  
-  // EnableXForwardedState allows the callback state URL to be assembled from any X-Forwarded-* headers instead of assuming the RequestURI.
-  EnableXForwardedState bool `json:"enable-x-forwarded-state" yaml:"enable-x-forwarded-state" usage:"assemble the callback state referrer from any X-forwarded-* headers (default to incoming RequestURI)"`
+
+	// EnableXForwardedState allows the callback state URL to be assembled from any X-Forwarded-* headers instead of assuming the RequestURI.
+	EnableXForwardedState bool `json:"enable-x-forwarded-state" yaml:"enable-x-forwarded-state" usage:"assemble the callback state referrer from any X-forwarded-* headers (default to incoming RequestURI)"`
+	// EnableXNoRedirectsHeader allows redirects to be disabled on a per-request basis by including a non-empty value for the 'X-Auth-NoRedirects' header.
+	EnableXNoRedirectsHeader bool `json:"enable-x-noredirects-header" yaml:"enable-x-noredirects-header" usage:"Disable auth redirects for the current request if a 'X-Auth-NoRedirects' header is present and not empty"`
 }
 
 // getVersion returns the proxy version
