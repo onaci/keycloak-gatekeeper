@@ -69,14 +69,16 @@ func newDefaultConfig() *Config {
 		UpstreamTLSHandshakeTimeout:   10 * time.Second,
 		UpstreamTimeout:               10 * time.Second,
 		UseLetsEncrypt:                false,
-    EnableXForwardedState:         false,
+		EnableXForwardedState:         false,
 	}
 }
 
 // WithOAuthURI returns the oauth uri
 func (r *Config) WithOAuthURI(uri string) string {
 	if r.BaseURI != "" {
-		return fmt.Sprintf("%s/%s/%s", r.BaseURI, r.OAuthURI, uri)
+		// config parsing ensures that OAuthURI *has* a leading but not trailing slash,
+		// and also that BaseURI has *no* trailing slash.
+		return fmt.Sprintf("%s%s/%s", r.BaseURI, r.OAuthURI, uri)
 	}
 
 	return fmt.Sprintf("%s/%s", r.OAuthURI, uri)
@@ -155,6 +157,15 @@ func (r *Config) isValid() error {
 			}
 			if strings.HasSuffix(r.RedirectionURL, "/") {
 				r.RedirectionURL = strings.TrimSuffix(r.RedirectionURL, "/")
+			}
+			if strings.HasSuffix(r.BaseURI, "/"){
+				r.BaseURI = strings.TrimSuffix(r.BaseURI, "/")
+			}
+			if strings.HasSuffix(r.OAuthURI, "/"){
+				r.OAuthURI = strings.TrimSuffix(r.OAuthURI, "/")
+			}
+			if ! strings.HasPrefix(r.OAuthURI, "/"){
+				r.OAuthURI = "/" + r.OAuthURI
 			}
 			if !r.EnableSecurityFilter {
 				if r.EnableHTTPSRedirect {

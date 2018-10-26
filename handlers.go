@@ -38,24 +38,44 @@ import (
 
 // getRedirectionURL returns the redirectionURL for the oauth flow
 func (r *oauthProxy) getRedirectionURL(w http.ResponseWriter, req *http.Request) string {
-	var redirect string
-	switch r.config.RedirectionURL {
-	case "":
-		// need to determine the scheme, cx.Request.URL.Scheme doesn't have it, best way is to default
-		// and then check for TLS
-		scheme := "http"
+	callbackUrl := r.config.WithOAuthURI("callback")
+	parsedCallback, callbackErr := url.ParseRequestURI(callbackUrl)
+	if callbackErr != nil {
+		r.log.Error("The callback URL is not valid!",
+			zap.String("callbackUrl", callbackUrl),
+			zap.Error(callbackErr))
+	}
+	if ! parsedCallback.IsAbs(){
+		// It is critical that the redirect go to an absolute URL, because
+		// otherwise it will be interpreted as relative to the discovery base URL.
+		// (It will only be already absolute if an absolute baseURI is being used.)
 		if req.TLS != nil {
-			scheme = "https"
+			parsedCallback.Scheme = "https"
+		} else {
+			parsedCallback.Host = defaultTo(req.Header.Get("X-Forwarded-Proto"), "http")
 		}
-		// @QUESTION: should I use the X-Forwarded-<header>?? ..
-		redirect = fmt.Sprintf("%s://%s",
-			defaultTo(req.Header.Get("X-Forwarded-Proto"), scheme),
-			defaultTo(req.Header.Get("X-Forwarded-Host"), req.Host))
-	default:
-		redirect = r.config.RedirectionURL
 	}
 
-	return fmt.Sprintf("%s%s", redirect, r.config.WithOAuthURI("callback"))
+	redirect := parsedCallback.String()
+	if r.config.RedirectionURL != "" {
+		// A custom redirection URL has been provided.
+		parsedRedirection, redirectionErr := url.ParseRequestURI(r.config.RedirectionURL)
+		if redirectionErr != nil {
+			r.log.Error("The custom redirection URL is not valid!",
+				zap.String("RedirectionUrl", r.config.RedirectionURL),
+				zap.Error(redirectionErr))
+		} else {
+			if ! parsedRedirection.IsAbs() {
+				r.log.Warn("The custom redirection URL is not absolute",
+					zap.String("RedirectionUrl", r.config.RedirectionURL))
+				parsedRedirection.Scheme = parsedCallback.Scheme
+				parsedRedirection.Host = parsedCallback.Host
+			}
+			// append the callback path to the custom redirect URL.
+			redirect = fmt.Sprintf("%s%s", parsedRedirection.String(), parsedCallback.Path)
+		}
+	}
+	return redirect
 }
 
 // oauthAuthorizationHandler is responsible for performing the redirection to oauth provider
@@ -197,8 +217,8 @@ func (r *oauthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 
 	// step: decode the state variable
 	state := "/"
-  stateIsAbsolute := false
-  queryState := req.URL.Query().Get("state")
+	stateIsAbsolute := false
+	queryState := req.URL.Query().Get("state")
 	if queryState != "" {
 		decodedState, decodeErr := base64.StdEncoding.DecodeString(queryState)
 		if decodeErr != nil {
@@ -207,14 +227,14 @@ func (r *oauthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 				zap.Error(decodeErr))
 		} else {
 			parsedState, parseErr := url.ParseRequestURI(string(decodedState))
-      if parseErr != nil {
-        r.log.Warn("unable to parse the state parameter to a valid request URI",
-          zap.String("decodedState", string(decodedState)),
-          zap.Error(parseErr))
-      } else {
-        state = parsedState.String()
-        stateIsAbsolute = parsedState.IsAbs()
-      }
+			if parseErr != nil {
+				r.log.Warn("unable to parse the state parameter to a valid request URI",
+					zap.String("decodedState", string(decodedState)),
+					zap.Error(parseErr))
+			} else {
+				state = parsedState.String()
+				stateIsAbsolute = parsedState.IsAbs()
+			}
 		}
 	}
 	if r.config.BaseURI != "" && ! stateIsAbsolute {
