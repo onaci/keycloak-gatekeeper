@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-  "strings"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/jose"
@@ -93,48 +93,63 @@ func (r *oauthProxy) redirectToURL(url string, w http.ResponseWriter, req *http.
 
 // redirectToAuthorization redirects the user to authorization handler
 func (r *oauthProxy) redirectToAuthorization(w http.ResponseWriter, req *http.Request) context.Context {
-	if r.config.NoRedirects {
+
+	if r.config.NoRedirects || (r.config.EnableXNoRedirectsHeader && ("" != req.Header.Get("X-Auth-NoRedirects"))) {
+		r.log.Warn("Redirecting for authorization is not supported for this request")
 		w.WriteHeader(http.StatusUnauthorized)
+
+		// RFC7235 requires a WWW-Authenticate header containing a challenge applicable to the requested resource.
+		// See: https://tools.ietf.org/html/rfc7235
+		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Bearer realm=\"%s\", error=\"missing_token\", error_description=\"oauth redirects disallowed\"", r.config.DiscoveryURL))
+
+		// are we using a custom http template for 401?
+		if r.config.UnauthorizedPage != "" {
+			name := path.Base(r.config.UnauthorizedPage)
+			if err := r.Render(w, name, r.config.Tags); err != nil {
+				r.log.Error("failed to render the template", zap.Error(err), zap.String("template", name))
+			}
+		}
+
 		return r.revokeProxy(w, req)
 	}
 
 	// step: add a state referrer to the authorization page
-  state := req.URL.RequestURI()
-  if r.config.EnableXForwardedState {
-    // Assemble the state referrer URL from the X-Forwarded-* headers
-    forwardedUri := req.Header.Get("X-Forwarded-URI")
-    if forwardedUri != "" {
-      r.log.Debug("Checking X-forwarded path headers",
-        zap.String("forwardedUri", forwardedUri))
-      state = forwardedUri
-    }
-    forwardedPrefix := req.Header.Get("X-Forwarded-Prefix")
-    if forwardedPrefix != "" {
-      r.log.Debug("Checking X-forwarded path headers",
-        zap.String("forwardedPrefix", forwardedPrefix))
-      state = fmt.Sprintf("%s%s", strings.TrimRight(forwardedPrefix, "/"), state)
-    }
-    forwardedHost := req.Header.Get("X-Forwarded-Host")
-    if forwardedHost != "" {
-      forwardedScheme := defaultTo(req.Header.Get("X-Forwarded-Proto"), req.URL.Scheme)
-      forwardedPort := req.Header.Get("X-Forwarded-Port")
-      if ! strings.Contains(forwardedHost, ":") && forwardedPort != "" {
-        state = fmt.Sprintf("%s://%s:%s%s", forwardedScheme, forwardedHost, forwardedPort, state)
-      } else {
-        state = fmt.Sprintf("%s://%s%s", forwardedScheme, forwardedHost, state)
-      }
-    } 
-    _, err := url.ParseRequestURI(state)
-    if err == nil {
-      r.log.Debug("Assembled state referrer URL from X-Forwarded-* headers",
-        zap.String("state", state))
-      
-    } else {
-      r.log.Warn("The X-Forwarded-* headers could not be assembled to a valid state referrer URL",
-        zap.String("state", state),
-        zap.Error(err))  
-      state = req.URL.RequestURI()
-    }
+	state := req.URL.RequestURI()
+	if r.config.EnableXForwardedState {
+		// Assemble the state referrer URL from the X-Forwarded-* headers
+		forwardedUri := req.Header.Get("X-Forwarded-URI")
+		if forwardedUri != "" {
+			r.log.Debug("Checking X-forwarded path headers",
+				zap.String("forwardedUri", forwardedUri))
+			state = forwardedUri
+		}
+		forwardedPrefix := req.Header.Get("X-Forwarded-Prefix")
+		if forwardedPrefix != "" {
+			r.log.Debug("Checking X-forwarded path headers",
+				zap.String("forwardedPrefix", forwardedPrefix))
+			state = fmt.Sprintf("%s%s", strings.TrimRight(forwardedPrefix, "/"), state)
+		}
+		forwardedHost := req.Header.Get("X-Forwarded-Host")
+		if forwardedHost != "" {
+			forwardedScheme := defaultTo(req.Header.Get("X-Forwarded-Proto"), req.URL.Scheme)
+			forwardedPort := req.Header.Get("X-Forwarded-Port")
+			if ! strings.Contains(forwardedHost, ":") && forwardedPort != "" {
+				state = fmt.Sprintf("%s://%s:%s%s", forwardedScheme, forwardedHost, forwardedPort, state)
+			} else {
+				state = fmt.Sprintf("%s://%s%s", forwardedScheme, forwardedHost, state)
+			}
+		}
+		_, err := url.ParseRequestURI(state)
+		if err == nil {
+			r.log.Debug("Assembled state referrer URL from X-Forwarded-* headers",
+				zap.String("state", state))
+
+		} else {
+			r.log.Warn("The X-Forwarded-* headers could not be assembled to a valid state referrer URL",
+				zap.String("state", state),
+				zap.Error(err))
+			state = req.URL.RequestURI()
+		}
 	}
 	authQuery := fmt.Sprintf("?state=%s", base64.StdEncoding.EncodeToString([]byte(state)))
 
