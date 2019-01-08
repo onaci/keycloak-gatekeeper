@@ -5,7 +5,7 @@ ADD https://github.com/golang/dep/releases/download/v0.5.0/dep-linux-amd64 /usr/
 RUN chmod +x /usr/bin/dep
 
 WORKDIR /go/src/github.com/keycloak/keycloak-gatekeeper
-COPY ./Gopkg.toml ./src/Gopkg.lock ./
+COPY ./Gopkg.toml ./Gopkg.lock ./
 RUN dep ensure --vendor-only
 COPY ./ ./
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo .
