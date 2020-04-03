@@ -198,7 +198,9 @@ func (r *oauthProxy) createReverseProxy() error {
 	}
 
 	// step: add the routing for oauth
-	engine.With(proxyDenyMiddleware).Route(r.config.BaseURI+r.config.OAuthURI, func(e chi.Router) {
+
+	oauthPath := MergeUri(r.config.BaseURI, r.config.OAuthURI)
+	engine.With(proxyDenyMiddleware).Route(oauthPath.Path, func(e chi.Router) {
 		e.MethodNotAllowed(methodNotAllowHandlder)
 		e.HandleFunc(authorizationURL, r.oauthAuthorizationHandler)
 		e.Get(callbackURL, r.oauthCallbackHandler)
@@ -710,6 +712,11 @@ func (r *oauthProxy) newOpenIDClient() (*oidc.Client, oidc.ProviderConfig, *http
 		r.log.Info("successfully retrieved openid configuration from the discovery")
 	}
 
+	r.log.Debug("OIDC Client Config", zap.String("clientid",
+		r.config.ClientID),
+		zap.String("redirectURL", fmt.Sprintf("%s/oauth/callback", r.config.RedirectionURL)),
+		zap.Any("ProviderConfig", config),
+	)
 	client, err := oidc.NewClient(oidc.ClientConfig{
 		Credentials: oidc.ClientCredentials{
 			ID:     r.config.ClientID,

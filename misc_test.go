@@ -122,3 +122,27 @@ func TestGetAccessCookieExpiration_ValidExp(t *testing.T) {
 	expectedDuration := time.Until(val)
 	assertAlmostEquals(t, expectedDuration, duration)
 }
+
+func TestMergeUri(t *testing.T) {
+	tests := [][3]string{
+		// base + addition == result
+		{"http://one.two.org", "some", "http://one.two.org/some"},
+		{"http://one.two.org:9999", "some", "http://one.two.org:9999/some"},
+
+		{"http://one.two.org", "http://another.org/some", "http://one.two.org/some"},
+		{"http://one.two.org", "http://another.org:6666/some", "http://one.two.org/some"},
+		{"http://one.two.org:9999", "http://another.org:6666/some", "http://one.two.org:9999/some"},
+
+		{"http://one.two.org/prefix", "some", "http://one.two.org/prefix/some"},
+		{"http://one.two.org", "https://another.org/banana", "http://one.two.org/banana"},
+		{"http://one.two.org/prefix", "https://another.org/banana", "http://one.two.org/prefix/banana"},
+		{"http://one.two.org/prefix?basequery=ok", "https://another.org/banana", "http://one.two.org/prefix/banana"},
+		{"http://one.two.org/prefix", "https://another.org/banana?addition=more", "http://one.two.org/prefix/banana?addition=more"},
+		{"http://one.two.org/prefix?basequery=ok", "https://another.org/banana?addition=more", "http://one.two.org/prefix/banana?addition=more"},
+	}
+	for _, test := range tests {
+		assert.Equal(t, test[2], MergeUri(test[0], test[1]).String())
+	}
+
+	//assert.Equal(t, "http://one.two.org/some", MergeUri("http://one.two.org", "some").String())
+}

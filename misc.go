@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -100,6 +101,7 @@ func (r *oauthProxy) redirectToAuthorization(w http.ResponseWriter, req *http.Re
 	// step: add a state referrer to the authorization page
 	uuid := r.writeStateParameterCookie(req, w)
 	authQuery := fmt.Sprintf("?state=%s", uuid)
+	r.log.Debug("RRRRRRRRRRRR", zap.String("request", req.URL.String()))
 
 	// step: if verification is switched off, we can't authorization
 	if r.config.SkipTokenVerification {
@@ -133,4 +135,23 @@ func (r *oauthProxy) getAccessCookieExpiration(token jose.JWT, refresh string) t
 	}
 
 	return duration
+}
+
+// MergUri parses the 2 URI strings, and merges in baseUri host:port/prefix to avoid making a https://host:port/https://host:port/strng mess
+func MergeUri(baseURI, resultURI string) *url.URL {
+	base, _ := url.Parse(baseURI)
+	result, _ := url.Parse(resultURI)
+	if base.Host != "" { // this has the port in it
+		result.Scheme = base.Scheme
+		result.Host = base.Host
+	}
+	if base.Path != "" {
+		if strings.HasSuffix(base.Path, "/") || strings.HasPrefix(result.Path, "/") {
+			result.Path = fmt.Sprintf("%s%s", base.Path, result.Path)
+		} else {
+			result.Path = fmt.Sprintf("%s/%s", base.Path, result.Path)
+		}
+	}
+
+	return result
 }
