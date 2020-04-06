@@ -715,13 +715,6 @@ func (r *oauthProxy) newOpenIDClient() (*oidc.Client, oidc.ProviderConfig, *http
 		r.log.Info("successfully retrieved openid configuration from the discovery")
 	}
 
-	r.log.Debug("OIDC Client Config", zap.String("clientid",
-		r.config.ClientID),
-		zap.String("redirectURL", fmt.Sprintf("%s/oauth/callback", r.config.RedirectionURL)),
-		zap.Any("ProviderConfig", config),
-	)
-	r.log.Debug("CONFIG: ", zap.Bool("EnableXForwardedState", r.config.EnableXForwardedState), zap.Bool("EnableXNoRedirectsHeader", r.config.EnableXNoRedirectsHeader))
-
 	client, err := oidc.NewClient(oidc.ClientConfig{
 		Credentials: oidc.ClientCredentials{
 			ID:     r.config.ClientID,

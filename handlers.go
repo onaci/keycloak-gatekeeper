@@ -78,78 +78,7 @@ func (r *oauthProxy) getRedirectionURL(w http.ResponseWriter, req *http.Request)
 		}
 	}
 
-	// SVEN - debugging
-	r.log.Debug("redirect",
-		zap.String("X-Forwarded-Proto", req.Header.Get("X-Forwarded-Proto")),
-		zap.String("X-Forwarded-Host", req.Header.Get("X-Forwarded-Host")),
-		zap.String("redirect", redirect),
-		zap.String("callbackUrl", callbackUrl),
-	)
-	state, _ := req.Cookie(requestStateCookie)
-	if state != nil {
-		decodedCookie, _ := base64.StdEncoding.DecodeString(state.Value)
-		r.log.Debug("cookie",
-			zap.String("cookieState", state.Value),
-			zap.String("cookie decoded", string(decodedCookie)),
-		)
-
-	}
-	if req.URL.Query().Get("state") != "" {
-		decodedQuery, _ := base64.StdEncoding.DecodeString(req.URL.Query().Get("state"))
-		r.log.Debug("query",
-			zap.String("queryState", req.URL.Query().Get("state")),
-			zap.String("query decoded", string(decodedQuery)),
-		)
-		//redirect = string(decodedQuery)
-	}
-
-	r.log.Debug("REDIRECT",
-		zap.String("redirect", redirect),
-	)
-
 	return redirect
-}
-
-// getRedirectionURL returns the redirectionURL for the oauth flow
-func (r *oauthProxy) weirdgetRedirectionURL(w http.ResponseWriter, req *http.Request) string {
-	var redirect string
-	switch r.config.RedirectionURL {
-	case "":
-		// need to determine the scheme, cx.Request.URL.Scheme doesn't have it, best way is to default
-		// and then check for TLS
-		scheme := unsecureScheme
-		if req.TLS != nil {
-			scheme = secureScheme
-		}
-		// @QUESTION: should I use the X-Forwarded-<header>?? ..
-		redirect = fmt.Sprintf("%s://%s",
-			defaultTo(req.Header.Get("X-Forwarded-Proto"), scheme),
-			defaultTo(req.Header.Get("X-Forwarded-Host"), req.Host))
-
-		r.log.Debug("x-forward redirect",
-			zap.String("X-Forwarded-Proto", req.Header.Get("X-Forwarded-Proto")),
-			zap.String("X-Forwarded-Host", req.Header.Get("X-Forwarded-Host")),
-			zap.String("redirect", redirect),
-		)
-	default:
-		redirect = r.config.RedirectionURL
-	}
-
-	state, _ := req.Cookie(requestStateCookie)
-	if state != nil && req.URL.Query().Get("state") != state.Value {
-		decodedQuery, _ := base64.StdEncoding.DecodeString(req.URL.Query().Get("state"))
-		decodedCookie, _ := base64.StdEncoding.DecodeString(state.Value)
-
-		r.log.Error("state parameter mismatch",
-			zap.String("queryState", req.URL.Query().Get("state")),
-			zap.String("query decoded", string(decodedQuery)),
-			zap.String("cookieState", state.Value),
-			zap.String("cookie decoded", string(decodedCookie)),
-		)
-		//w.WriteHeader(http.StatusForbidden)
-		//return ""
-	}
-	return fmt.Sprintf("%s%s", redirect, r.config.WithOAuthURI("callback"))
 }
 
 // oauthAuthorizationHandler is responsible for performing the redirection to oauth provider

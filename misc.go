@@ -115,10 +115,6 @@ func (r *oauthProxy) redirectToAuthorization(w http.ResponseWriter, req *http.Re
 	}
 
 	// step: add a state referrer to the authorization page
-	//	uuid := r.writeStateParameterCookie(req, w)
-	//	authQuery := fmt.Sprintf("?state=%s", uuid)
-	//	r.log.Debug("RRRRRRRRRRRR", zap.String("request", req.URL.String()))
-
 	state := req.URL.RequestURI()
 	if r.config.EnableXForwardedState {
 		// Assemble the state referrer URL from the X-Forwarded-* headers
@@ -158,7 +154,6 @@ func (r *oauthProxy) redirectToAuthorization(w http.ResponseWriter, req *http.Re
 	}
 
 	authQuery := fmt.Sprintf("?state=%s", base64.StdEncoding.EncodeToString([]byte(state)))
-	r.log.Debug("setting state cookie:", zap.String("state", state), zap.String("authQuery", authQuery))
 
 	// step: if verification is switched off, we can't authorization
 	if r.config.SkipTokenVerification {
