@@ -79,9 +79,7 @@ func newDefaultConfig() *Config {
 // WithOAuthURI returns the oauth uri
 func (r *Config) WithOAuthURI(uri string) string {
 	if r.BaseURI != "" {
-		res := MergeUri(r.BaseURI, r.OAuthURI)
-		res = MergeUri(res.String(), uri)
-		return res.String()
+		return fmt.Sprintf("%s/%s/%s", r.BaseURI, r.OAuthURI, uri)
 	}
 
 	return fmt.Sprintf("%s/%s", r.OAuthURI, uri)

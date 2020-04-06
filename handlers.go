@@ -149,7 +149,7 @@ func (r *oauthProxy) weirdgetRedirectionURL(w http.ResponseWriter, req *http.Req
 		//w.WriteHeader(http.StatusForbidden)
 		//return ""
 	}
-	return MergeUri(redirect, r.config.WithOAuthURI("callback")).String()
+	return fmt.Sprintf("%s%s", redirect, r.config.WithOAuthURI("callback"))
 }
 
 // oauthAuthorizationHandler is responsible for performing the redirection to oauth provider
@@ -359,7 +359,7 @@ func (r *oauthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 	p, err := url.Parse(redirectURI)
 	if err != nil || !p.IsAbs() {
 		if r.config.BaseURI != "" {
-			redirectURI = MergeUri(r.config.BaseURI, redirectURI).String()
+			redirectURI = r.config.RedirectionURL + redirectURI
 		}
 	}
 	r.log.Debug("FINAL MERGED REDIRECT",

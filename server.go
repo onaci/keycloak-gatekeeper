@@ -198,9 +198,7 @@ func (r *oauthProxy) createReverseProxy() error {
 	}
 
 	// step: add the routing for oauth
-
-	oauthPath := MergeUri(r.config.BaseURI, r.config.OAuthURI)
-	engine.With(proxyDenyMiddleware).Route(oauthPath.Path, func(e chi.Router) {
+	engine.With(proxyDenyMiddleware).Route(r.config.BaseURI+r.config.OAuthURI, func(e chi.Router) {
 		e.MethodNotAllowed(methodNotAllowHandlder)
 		e.HandleFunc(authorizationURL, r.oauthAuthorizationHandler)
 		e.Get(callbackURL, r.oauthCallbackHandler)
