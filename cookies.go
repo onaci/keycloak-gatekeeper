@@ -17,9 +17,7 @@ package main
 
 import (
 	"encoding/base64"
-	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -41,14 +39,10 @@ func (r *oauthProxy) dropCookie(w http.ResponseWriter, host, name, value string,
 	if r.config.CookieDomain != "" {
 		domain = r.config.CookieDomain
 	}
-	path := "/"
-	if result, err := url.Parse(r.config.BaseURI); err == nil {
-		if result.Path != "" {
-			path = result.Path
-		}
+	path := r.config.BaseURI
+	if path == "" {
+		path = "/"
 	}
-	fmt.Printf("SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS cookie path = %s\n", path)
-
 	cookie := &http.Cookie{
 		Domain:   domain,
 		HttpOnly: r.config.HTTPOnlyCookie,
