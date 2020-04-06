@@ -358,7 +358,7 @@ func (r *oauthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 
 	p, err := url.Parse(redirectURI)
 	if err != nil || !p.IsAbs() {
-		if r.config.BaseURI != "" {
+		if r.config.RedirectionURL != "" {
 			redirectURI = r.config.RedirectionURL + redirectURI
 		}
 	}
