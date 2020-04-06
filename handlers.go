@@ -327,45 +327,6 @@ func (r *oauthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 		}
 	}
 
-	// SVEN - debugging
-	r.log.Debug("redirect",
-		zap.String("X-Forwarded-Proto", req.Header.Get("X-Forwarded-Proto")),
-		zap.String("X-Forwarded-Host", req.Header.Get("X-Forwarded-Host")),
-		zap.String("redirect", redirectURI),
-		//zap.String("callbackUrl", callbackUrl),
-	)
-	state, _ := req.Cookie(requestStateCookie)
-	if state != nil {
-		decodedCookie, _ := base64.StdEncoding.DecodeString(state.Value)
-		r.log.Debug("cookie",
-			zap.String("cookieState", state.Value),
-			zap.String("cookie decoded", string(decodedCookie)),
-		)
-
-	}
-	if req.URL.Query().Get("state") != "" {
-		decodedQuery, _ := base64.StdEncoding.DecodeString(req.URL.Query().Get("state"))
-		r.log.Debug("query",
-			zap.String("queryState", req.URL.Query().Get("state")),
-			zap.String("query decoded", string(decodedQuery)),
-		)
-		//redirect = string(decodedQuery)
-	}
-
-	r.log.Debug("FINAL REDIRECT",
-		zap.String("redirect", redirectURI),
-	)
-
-	p, err := url.Parse(redirectURI)
-	if err != nil || !p.IsAbs() {
-		if r.config.RedirectionURL != "" {
-			redirectURI = r.config.RedirectionURL + redirectURI
-		}
-	}
-	r.log.Debug("FINAL MERGED REDIRECT",
-		zap.String("redirect", redirectURI),
-	)
-
 	r.redirectToURL(redirectURI, w, req, http.StatusTemporaryRedirect)
 }
 
