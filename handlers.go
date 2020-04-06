@@ -40,6 +40,78 @@ import (
 
 // getRedirectionURL returns the redirectionURL for the oauth flow
 func (r *oauthProxy) getRedirectionURL(w http.ResponseWriter, req *http.Request) string {
+	callbackUrl := r.config.WithOAuthURI("callback")
+	parsedCallback, callbackErr := url.ParseRequestURI(callbackUrl)
+	if callbackErr != nil {
+		r.log.Error("The callback URL is not valid!",
+			zap.String("callbackUrl", callbackUrl),
+			zap.Error(callbackErr))
+	}
+	if !parsedCallback.IsAbs() {
+		// It is critical that the redirect go to an absolute URL, because
+		// otherwise it will be interpreted as relative to the discovery base URL.
+		// (It will only be already absolute if an absolute baseURI is being used.)
+		if req.TLS != nil {
+			parsedCallback.Scheme = "https"
+		} else {
+			parsedCallback.Host = defaultTo(req.Header.Get("X-Forwarded-Proto"), "http")
+		}
+	}
+
+	redirect := parsedCallback.String()
+	if r.config.RedirectionURL != "" {
+		// A custom redirection URL has been provided.
+		parsedRedirection, redirectionErr := url.ParseRequestURI(r.config.RedirectionURL)
+		if redirectionErr != nil {
+			r.log.Error("The custom redirection URL is not valid!",
+				zap.String("RedirectionUrl", r.config.RedirectionURL),
+				zap.Error(redirectionErr))
+		} else {
+			if !parsedRedirection.IsAbs() {
+				r.log.Warn("The custom redirection URL is not absolute",
+					zap.String("RedirectionUrl", r.config.RedirectionURL))
+				parsedRedirection.Scheme = parsedCallback.Scheme
+				parsedRedirection.Host = parsedCallback.Host
+			}
+			// append the callback path to the custom redirect URL.
+			redirect = fmt.Sprintf("%s%s", parsedRedirection.String(), parsedCallback.Path)
+		}
+	}
+
+	// SVEN - debugging
+	r.log.Debug("redirect",
+		zap.String("X-Forwarded-Proto", req.Header.Get("X-Forwarded-Proto")),
+		zap.String("X-Forwarded-Host", req.Header.Get("X-Forwarded-Host")),
+		zap.String("redirect", redirect),
+		zap.String("callbackUrl", callbackUrl),
+	)
+	state, _ := req.Cookie(requestStateCookie)
+	if state != nil {
+		decodedCookie, _ := base64.StdEncoding.DecodeString(state.Value)
+		r.log.Debug("cookie",
+			zap.String("cookieState", state.Value),
+			zap.String("cookie decoded", string(decodedCookie)),
+		)
+
+	}
+	if req.URL.Query().Get("state") != "" {
+		decodedQuery, _ := base64.StdEncoding.DecodeString(req.URL.Query().Get("state"))
+		r.log.Debug("query",
+			zap.String("queryState", req.URL.Query().Get("state")),
+			zap.String("query decoded", string(decodedQuery)),
+		)
+		//redirect = string(decodedQuery)
+	}
+
+	r.log.Debug("REDIRECT",
+		zap.String("redirect", redirect),
+	)
+
+	return redirect
+}
+
+// getRedirectionURL returns the redirectionURL for the oauth flow
+func (r *oauthProxy) weirdgetRedirectionURL(w http.ResponseWriter, req *http.Request) string {
 	var redirect string
 	switch r.config.RedirectionURL {
 	case "":
@@ -53,15 +125,29 @@ func (r *oauthProxy) getRedirectionURL(w http.ResponseWriter, req *http.Request)
 		redirect = fmt.Sprintf("%s://%s",
 			defaultTo(req.Header.Get("X-Forwarded-Proto"), scheme),
 			defaultTo(req.Header.Get("X-Forwarded-Host"), req.Host))
+
+		r.log.Debug("x-forward redirect",
+			zap.String("X-Forwarded-Proto", req.Header.Get("X-Forwarded-Proto")),
+			zap.String("X-Forwarded-Host", req.Header.Get("X-Forwarded-Host")),
+			zap.String("redirect", redirect),
+		)
 	default:
 		redirect = r.config.RedirectionURL
 	}
 
 	state, _ := req.Cookie(requestStateCookie)
 	if state != nil && req.URL.Query().Get("state") != state.Value {
-		r.log.Error("state parameter mismatch")
-		w.WriteHeader(http.StatusForbidden)
-		return ""
+		decodedQuery, _ := base64.StdEncoding.DecodeString(req.URL.Query().Get("state"))
+		decodedCookie, _ := base64.StdEncoding.DecodeString(state.Value)
+
+		r.log.Error("state parameter mismatch",
+			zap.String("queryState", req.URL.Query().Get("state")),
+			zap.String("query decoded", string(decodedQuery)),
+			zap.String("cookieState", state.Value),
+			zap.String("cookie decoded", string(decodedCookie)),
+		)
+		//w.WriteHeader(http.StatusForbidden)
+		//return ""
 	}
 	return MergeUri(redirect, r.config.WithOAuthURI("callback")).String()
 }
@@ -240,9 +326,45 @@ func (r *oauthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 			}
 		}
 	}
-	if r.config.BaseURI != "" {
-		redirectURI = MergeUri(r.config.BaseURI, redirectURI).String()
+
+	// SVEN - debugging
+	r.log.Debug("redirect",
+		zap.String("X-Forwarded-Proto", req.Header.Get("X-Forwarded-Proto")),
+		zap.String("X-Forwarded-Host", req.Header.Get("X-Forwarded-Host")),
+		zap.String("redirect", redirectURI),
+		//zap.String("callbackUrl", callbackUrl),
+	)
+	state, _ := req.Cookie(requestStateCookie)
+	if state != nil {
+		decodedCookie, _ := base64.StdEncoding.DecodeString(state.Value)
+		r.log.Debug("cookie",
+			zap.String("cookieState", state.Value),
+			zap.String("cookie decoded", string(decodedCookie)),
+		)
+
 	}
+	if req.URL.Query().Get("state") != "" {
+		decodedQuery, _ := base64.StdEncoding.DecodeString(req.URL.Query().Get("state"))
+		r.log.Debug("query",
+			zap.String("queryState", req.URL.Query().Get("state")),
+			zap.String("query decoded", string(decodedQuery)),
+		)
+		//redirect = string(decodedQuery)
+	}
+
+	r.log.Debug("FINAL REDIRECT",
+		zap.String("redirect", redirectURI),
+	)
+
+	p, err := url.Parse(redirectURI)
+	if err != nil || !p.IsAbs() {
+		if r.config.BaseURI != "" {
+			redirectURI = MergeUri(r.config.BaseURI, redirectURI).String()
+		}
+	}
+	r.log.Debug("FINAL MERGED REDIRECT",
+		zap.String("redirect", redirectURI),
+	)
 
 	r.redirectToURL(redirectURI, w, req, http.StatusTemporaryRedirect)
 }

@@ -156,7 +156,9 @@ func (r *oauthProxy) redirectToAuthorization(w http.ResponseWriter, req *http.Re
 			state = req.URL.RequestURI()
 		}
 	}
+
 	authQuery := fmt.Sprintf("?state=%s", base64.StdEncoding.EncodeToString([]byte(state)))
+	r.log.Debug("setting state cookie:", zap.String("state", state), zap.String("authQuery", authQuery))
 
 	// step: if verification is switched off, we can't authorization
 	if r.config.SkipTokenVerification {
